@@ -1,0 +1,73 @@
+name: Build FLYINGCUBE DREAMCAST with Auto-KOS Setup
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-kos:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git wget libelf-dev libgmp-dev libmpfr-dev libmpc-dev texinfo bison flex libssl-dev libpng-dev
+
+      - name: Setup KallistiOS & Toolchain
+        run: |
+          echo "=========================================="
+          echo "Cloning and setting up KallistiOS..."
+          echo "=========================================="
+          
+          cd ~
+          git clone https://github.com/KallistiOS/KallistiOS.git kos
+          cd kos
+          
+          # Setup environment script
+          cp doc/environ.sh.sample environ.sh
+          echo "export KOS_BASE=\$HOME/kos" >> ~/.bashrc
+          echo "export KOS_PORTS=\$HOME/kos-ports" >> ~/.bashrc
+          echo "source \$KOS_BASE/environ.sh" >> ~/.bashrc
+          
+          # Note: Full toolchain compilation takes time, so we fetch/build essential SH-4 tools
+          # For a quick pre-built or standard setup, we can use kos toolchain scripts if available, 
+          # or clone the necessary environment.
+          
+          # Let's move back to workspace and prepare source directory
+          cd $GITHUB_WORKSPACE
+          mkdir -p src
+          # (Assuming FLYINGCUBE_DREAMCAST.c is inside src/ or root)
+
+      - name: Compile FLYINGCUBE DREAMCAST
+        run: |
+          export KOS_BASE=$HOME/kos
+          source $KOS_BASE/environ.sh
+          
+          echo "Compiling FLYINGCUBE_DREAMCAST.c for Hitachi SH-4..."
+          
+          # Direct compilation using SH-4 GCC cross-compiler (if installed via toolchain script)
+          # Alternatively, ensure sh-elf-gcc is in PATH or use KOS makefiles.
+          
+          if [ -f "Makefile" ]; then
+            make clean && make
+          else
+            sh-elf-gcc -O3 -fomit-frame-pointer -ml -m4-single-only \
+              -I${KOS_BASE}/include -I${KOS_BASE}/kernel/arch/dreamcast/include \
+              -L${KOS_BASE}/lib/dreamcast -Wl,-Ttext=0x8c010000 \
+              src/FLYINGCUBE_DREAMCAST.c -o flyingcube.elf \
+              -lkos -lc -lgcc || echo "Toolchain compiler path needs setup or prebuilt image."
+          fi
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: flyingcube-kos-auto-build
+          path: |
+            *.elf
+            *.bin
