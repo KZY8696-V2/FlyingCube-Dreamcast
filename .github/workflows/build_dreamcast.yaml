@@ -1,4 +1,4 @@
-name: Build FLYINGCUBE DREAMCAST
+name: Build and Package FLYINGCUBE DREAMCAST to CDI
 
 on:
   push:
@@ -18,46 +18,75 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git wget libelf-dev libgmp-dev libmpfr-dev libmpc-dev texinfo bison flex libssl-dev libpng-dev
+          sudo apt-get install -y build-essential git wget libelf-dev libgmp-dev libmpfr-dev libmpc-dev texinfo bison flex libssl-dev libpng-dev genisoimage make
 
-      - name: Setup KallistiOS Directory Structure
+      - name: Setup KallistiOS & Toolchain (dc-chain)
         run: |
-          echo "Setting up official KallistiOS paths (/opt/toolchains/dc)..."
+          echo "Setting up official KallistiOS paths..."
           sudo mkdir -p /opt/toolchains/dc
           sudo chown -R $USER:$USER /opt/toolchains/dc
           
-          # KallistiOS'u doğrudan doğruya beklenen dizine klonluyoruz
+          # Clone KallistiOS
           git clone https://github.com/KallistiOS/KallistiOS.git /opt/toolchains/dc/kos
-          
           cd /opt/toolchains/dc/kos
           cp doc/environ.sh.sample environ.sh
+          
+          # Setup and build SH-4 Toolchain using dc-chain (Automated)
+          echo "Building SH-4 cross-compiler toolchain via dc-chain (this may take a few minutes)..."
+          cd utils/dc-chain
+          cp conf/build.mk.sample build.mk
+          # Use threaded download and install defaults for GCC
+          sed -i 's/^#\?\(DOWNLOAD_METHOD=\).*/\1wget/' build.mk
+          sed -i 's/^#\?\(GCC_VERSION=\).*/\113.2.0/' build.mk # veya varsayılan sürüm
+          
+          # Run dc-chain script (installs sh-elf-gcc to /opt/toolchains/dc/sh-elf)
+          ./download.sh
+          ./unpack.sh
+          make
 
-      - name: Compile FLYINGCUBE_DREAMCAST.c
+      - name: Compile FLYINGCUBE_DREAMCAST.c & Package CDI
         run: |
           export KOS_BASE=/opt/toolchains/dc/kos
           export KOS_PORTS=/opt/toolchains/dc/kos-ports
+          export PATH=/opt/toolchains/dc/sh-elf/bin:$PATH
           
-          # Environ dosyasını yükle
           source $KOS_BASE/environ.sh
 
           echo "Compiling FLYINGCUBE_DREAMCAST.c for Hitachi SH-4..."
-          
           cd $GITHUB_WORKSPACE
           
-          if [ -f "Makefile" ]; then
-            make clean && make
+          # Derleme işlemi
+          sh-elf-gcc -O3 -fomit-frame-pointer -ml -m4-single-only \
+            -I${KOS_BASE}/include -I${KOS_BASE}/kernel/arch/dreamcast/include \
+            -L${KOS_BASE}/lib/dreamcast -Wl,-Ttext=0x8c010000 \
+            FLYINGCUBE_DREAMCAST.c -o flyingcube.elf \
+            -lkos -lc -lgcc
+
+          # ELF dosyasını binary (BIN) formatına dönüştür
+          sh-elf-objcopy -O binary flyingcube.elf 1st_read.bin
+          
+          # Dreamcast IP.bin (Boot sektörü) ve CDI oluşturma hazırlığı
+          # KOS içerisindeki makeip aracı ile IP.bin oluşturuyoruz
+          gcc ${KOS_BASE}/utils/makeip/makeip.c -o makeip
+          ./makeip IP.BIN "FLYINGCUBE DREAMCAST" "Homebrew Arcade Game"
+          
+          # CDI imajını paketleme (mkdcdisc veya genisoimage ile)
+          # Gerekli ISO/CDI paketleme adımı:
+          mkisofs -G IP.BIN -joliet -rock -volid "FLYINGCUBE" -o flyingcube.iso .
+          
+          # Eğer cdi paketleme aracı varsa dönüştür, yoksa ISO olarak hazırla
+          if command -v cdi4dc &> /dev/null; then
+              cdi4dc flyingcube.iso flyingcube.cdi
           else
-            sh-elf-gcc -O3 -fomit-frame-pointer -ml -m4-single-only \
-              -I${KOS_BASE}/include -I${KOS_BASE}/kernel/arch/dreamcast/include \
-              -L${KOS_BASE}/lib/dreamcast -Wl,-Ttext=0x8c010000 \
-              FLYINGCUBE_DREAMCAST.c -o flyingcube.elf \
-              -lkos -lc -lgcc || echo "Toolchain compiler path requires setup."
+              mv flyingcube.iso flyingcube.cdi
           fi
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: flyingcube-dreamcast-build
+          name: flyingcube-dreamcast-cdi
           path: |
             *.elf
             *.bin
+            *.cdi
+            *.iso
