@@ -31,19 +31,27 @@ jobs:
           cd /opt/toolchains/dc/kos
           cp doc/environ.sh.sample environ.sh
           
-          # Setup and build SH-4 Toolchain using dc-chain from correct path (utils/dc-chain or root utils)
+          # Setup and build SH-4 Toolchain using dc-chain
           echo "Building SH-4 cross-compiler toolchain via dc-chain..."
           
-          # Güncel KOS yapısında dc-chain utils altındadır, kontrol edip girilir
           if [ -d "utils/dc-chain" ]; then
             cd utils/dc-chain
           elif [ -d "dc-chain" ]; then
             cd dc-chain
           fi
           
-          cp conf/build.mk.sample build.mk
-          sed -i 's/^#\?\(DOWNLOAD_METHOD=\).*/\1wget/' build.mk
-          sed -i 's/^#\?\(GCC_VERSION=\).*/\113.2.0/' build.mk
+          # Güvenli konfigürasyon dosyası oluşturma (Eğer sample yoksa elle yaz veya kopyala)
+          if [ -f "conf/build.mk.sample" ]; then
+            cp conf/build.mk.sample build.mk
+          elif [ -f "build.mk.sample" ]; then
+            cp build.mk.sample build.mk
+          else
+            # Örnek dosya bulunamazsa standart build.mk oluştur
+            echo "DOWNLOAD_METHOD=wget" > build.mk
+            echo "GCC_VERSION=13.2.0" >> build.mk
+          fi
+          
+          sed -i 's/^#\?\(DOWNLOAD_METHOD=\).*/\1wget/' build.mk || true
           
           ./download.sh
           ./unpack.sh
@@ -74,7 +82,7 @@ jobs:
           gcc ${KOS_BASE}/utils/makeip/makeip.c -o makeip
           ./makeip IP.BIN "FLYINGCUBE DREAMCAST" "Homebrew Arcade Game"
           
-          # CDI imajını paketleme (ISO oluşturup cdi formatına dönüştürme)
+          # CDI imajını paketleme
           mkisofs -G IP.BIN -joliet -rock -volid "FLYINGCUBE" -o flyingcube.iso .
           mv flyingcube.iso flyingcube.cdi
 
