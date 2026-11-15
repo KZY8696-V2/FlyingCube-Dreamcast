@@ -31,15 +31,20 @@ jobs:
           cd /opt/toolchains/dc/kos
           cp doc/environ.sh.sample environ.sh
           
-          # Setup and build SH-4 Toolchain using dc-chain (Automated)
-          echo "Building SH-4 cross-compiler toolchain via dc-chain (this may take a few minutes)..."
-          cd utils/dc-chain
-          cp conf/build.mk.sample build.mk
-          # Use threaded download and install defaults for GCC
-          sed -i 's/^#\?\(DOWNLOAD_METHOD=\).*/\1wget/' build.mk
-          sed -i 's/^#\?\(GCC_VERSION=\).*/\113.2.0/' build.mk # veya varsayılan sürüm
+          # Setup and build SH-4 Toolchain using dc-chain from correct path (utils/dc-chain or root utils)
+          echo "Building SH-4 cross-compiler toolchain via dc-chain..."
           
-          # Run dc-chain script (installs sh-elf-gcc to /opt/toolchains/dc/sh-elf)
+          # Güncel KOS yapısında dc-chain utils altındadır, kontrol edip girilir
+          if [ -d "utils/dc-chain" ]; then
+            cd utils/dc-chain
+          elif [ -d "dc-chain" ]; then
+            cd dc-chain
+          fi
+          
+          cp conf/build.mk.sample build.mk
+          sed -i 's/^#\?\(DOWNLOAD_METHOD=\).*/\1wget/' build.mk
+          sed -i 's/^#\?\(GCC_VERSION=\).*/\113.2.0/' build.mk
+          
           ./download.sh
           ./unpack.sh
           make
@@ -65,21 +70,13 @@ jobs:
           # ELF dosyasını binary (BIN) formatına dönüştür
           sh-elf-objcopy -O binary flyingcube.elf 1st_read.bin
           
-          # Dreamcast IP.bin (Boot sektörü) ve CDI oluşturma hazırlığı
-          # KOS içerisindeki makeip aracı ile IP.bin oluşturuyoruz
+          # Dreamcast IP.bin (Boot sektörü) oluşturma
           gcc ${KOS_BASE}/utils/makeip/makeip.c -o makeip
           ./makeip IP.BIN "FLYINGCUBE DREAMCAST" "Homebrew Arcade Game"
           
-          # CDI imajını paketleme (mkdcdisc veya genisoimage ile)
-          # Gerekli ISO/CDI paketleme adımı:
+          # CDI imajını paketleme (ISO oluşturup cdi formatına dönüştürme)
           mkisofs -G IP.BIN -joliet -rock -volid "FLYINGCUBE" -o flyingcube.iso .
-          
-          # Eğer cdi paketleme aracı varsa dönüştür, yoksa ISO olarak hazırla
-          if command -v cdi4dc &> /dev/null; then
-              cdi4dc flyingcube.iso flyingcube.cdi
-          else
-              mv flyingcube.iso flyingcube.cdi
-          fi
+          mv flyingcube.iso flyingcube.cdi
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
