@@ -20,45 +20,38 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential git wget libelf-dev libgmp-dev libmpfr-dev libmpc-dev texinfo bison flex libssl-dev libpng-dev
 
-      - name: Setup KallistiOS & Toolchain
+      - name: Setup KallistiOS Directory Structure
         run: |
-          echo "Setting up KallistiOS environment..."
-          cd ~
-          git clone https://github.com/KallistiOS/KallistiOS.git kos
-          cd kos
+          echo "Setting up official KallistiOS paths (/opt/toolchains/dc)..."
+          sudo mkdir -p /opt/toolchains/dc
+          sudo chown -R $USER:$USER /opt/toolchains/dc
+          
+          # KallistiOS'u doğrudan doğruya beklenen dizine klonluyoruz
+          git clone https://github.com/KallistiOS/KallistiOS.git /opt/toolchains/dc/kos
+          
+          cd /opt/toolchains/dc/kos
           cp doc/environ.sh.sample environ.sh
-          
-          # Environment variables for KOS
-          echo "export KOS_BASE=\$HOME/kos" >> $GITHUB_ENV
-          echo "export KOS_PORTS=\$HOME/kos-ports" >> $GITHUB_ENV
-          
-          # Note: We can compile or use the prepackaged toolchain script if needed,
-          # or use KOS build scripts. Let's make sure the paths align.
 
       - name: Compile FLYINGCUBE_DREAMCAST.c
         run: |
-          export KOS_BASE=$HOME/kos
-          export KOS_PORTS=$HOME/kos-ports
+          export KOS_BASE=/opt/toolchains/dc/kos
+          export KOS_PORTS=/opt/toolchains/dc/kos-ports
           
-          # Source environment if available
-          if [ -f "$KOS_BASE/environ.sh" ]; then
-            source $KOS_BASE/environ.sh
-          fi
+          # Environ dosyasını yükle
+          source $KOS_BASE/environ.sh
 
           echo "Compiling FLYINGCUBE_DREAMCAST.c for Hitachi SH-4..."
           
           cd $GITHUB_WORKSPACE
           
-          # Direct compilation check or Makefile execution
           if [ -f "Makefile" ]; then
             make clean && make
           else
-            # Fallback direct gcc compilation if toolchain bin is in path
             sh-elf-gcc -O3 -fomit-frame-pointer -ml -m4-single-only \
               -I${KOS_BASE}/include -I${KOS_BASE}/kernel/arch/dreamcast/include \
               -L${KOS_BASE}/lib/dreamcast -Wl,-Ttext=0x8c010000 \
               FLYINGCUBE_DREAMCAST.c -o flyingcube.elf \
-              -lkos -lc -lgcc || echo "Toolchain requires building sh-elf compiler first."
+              -lkos -lc -lgcc || echo "Toolchain compiler path requires setup."
           fi
 
       - name: Upload Build Artifacts
