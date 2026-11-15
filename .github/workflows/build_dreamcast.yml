@@ -28,20 +28,16 @@ jobs:
           
           # Clone KallistiOS
           git clone https://github.com/KallistiOS/KallistiOS.git /opt/toolchains/dc/kos
+          
+          # Doğrudan sabit ve kesin yola giriyoruz
           cd /opt/toolchains/dc/kos
           cp doc/environ.sh.sample environ.sh
           
-          # Doğrudan utils/dc-chain dizinine gidiyoruz (En güncel KOS yapısı)
-          if [ -d "utils/dc-chain" ]; then
-            cd utils/dc-chain
-          else
-            # Alternatif olarak dc-chain klasörünü arayıp içine gir
-            cd $(find /opt/toolchains/dc/kos -type d -name "dc-chain" | head -n 1)
-          fi
+          # dc-chain klasörüne geçiş
+          cd utils/dc-chain
+          echo "Active directory: $(pwd)"
           
-          echo "Current working directory for dc-chain: $(pwd)"
-          
-          # Konfigürasyon dosyası
+          # Konfigürasyon oluşturma
           if [ -f "conf/build.mk.sample" ]; then
             cp conf/build.mk.sample build.mk
           else
@@ -74,7 +70,7 @@ jobs:
             FLYINGCUBE_DREAMCAST.c -o flyingcube.elf \
             -lkos -lc -lgcc
 
-          # ELF dosyasını binary (BIN) formatına dönüştür
+          # ELF dosyasını binary formatına dönüştür
           sh-elf-objcopy -O binary flyingcube.elf 1st_read.bin
           
           # Dreamcast IP.bin oluşturma
