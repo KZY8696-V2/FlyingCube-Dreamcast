@@ -31,21 +31,17 @@ jobs:
           cd /opt/toolchains/dc/kos
           cp doc/environ.sh.sample environ.sh
           
-          # dc-chain klasörünü güvenli bir şekilde bulup içine girme
+          # Doğrudan utils/dc-chain dizinine gidiyoruz (En güncel KOS yapısı)
           if [ -d "utils/dc-chain" ]; then
             cd utils/dc-chain
-          elif [ -d "dc-chain" ]; then
-            cd dc-chain
-          elif [ -d "utils/tools/dc-chain" ]; then
-            cd utils/tools/dc-chain
           else
-            # Eğer dc-chain kök dizinde farklı bir yerdeyse bul
-            cd $(find . -type d -name "dc-chain" | head -n 1)
+            # Alternatif olarak dc-chain klasörünü arayıp içine gir
+            cd $(find /opt/toolchains/dc/kos -type d -name "dc-chain" | head -n 1)
           fi
           
-          echo "Found dc-chain at: $(pwd)"
+          echo "Current working directory for dc-chain: $(pwd)"
           
-          # build.mk konfigürasyonunu oluştur
+          # Konfigürasyon dosyası
           if [ -f "conf/build.mk.sample" ]; then
             cp conf/build.mk.sample build.mk
           else
@@ -55,7 +51,7 @@ jobs:
           
           sed -i 's/^#\?\(DOWNLOAD_METHOD=\).*/\1wget/' build.mk || true
           
-          # dc-chain betiklerini çalıştır
+          # dc-chain çalıştırma
           ./download.sh
           ./unpack.sh
           make
@@ -81,7 +77,7 @@ jobs:
           # ELF dosyasını binary (BIN) formatına dönüştür
           sh-elf-objcopy -O binary flyingcube.elf 1st_read.bin
           
-          # Dreamcast IP.bin (Boot sektörü) oluşturma
+          # Dreamcast IP.bin oluşturma
           gcc ${KOS_BASE}/utils/makeip/makeip.c -o makeip
           ./makeip IP.BIN "FLYINGCUBE DREAMCAST" "Homebrew Arcade Game"
           
